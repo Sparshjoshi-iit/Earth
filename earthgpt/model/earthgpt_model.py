@@ -212,7 +212,7 @@ class EarthGPT(nn.Module):
             pixel_values: (batch_size, channels, height, width)
 
         Returns:
-            inputs_embeds: (batch_size, seq_len, hidden_size)
+            inputs_embeds: (batch_size, new_seq_len, hidden_size)
         """
         # Get text embeddings
         inputs_embeds = self.llm.get_input_embeddings()(input_ids)
@@ -226,12 +226,15 @@ class EarthGPT(nn.Module):
 
         # Replace <image> tokens with image embeddings
         batch_size = input_ids.shape[0]
+        new_inputs_embeds = []
 
         for i in range(batch_size):
             # Find <image> token positions
             image_positions = (input_ids[i] == self.image_token_id).nonzero(as_tuple=True)[0]
 
             if len(image_positions) == 0:
+                # No image token, keep original embeddings
+                new_inputs_embeds.append(inputs_embeds[i])
                 continue
 
             # For simplicity, assume one <image> token per sample
@@ -242,13 +245,19 @@ class EarthGPT(nn.Module):
             before_image = inputs_embeds[i, :image_pos]
             after_image = inputs_embeds[i, image_pos + 1:]
 
-            # Concatenate
-            inputs_embeds[i] = torch.cat([
+            # Concatenate: text before image + image patches + text after image
+            new_embed = torch.cat([
                 before_image,
                 image_embeds[i],
                 after_image,
-                # Pad to original length if needed
             ], dim=0)
+
+            new_inputs_embeds.append(new_embed)
+
+        # Stack back into tensor
+        # Note: This assumes all samples have same length after image insertion
+        # For variable lengths, we need padding (handled by attention mask)
+        inputs_embeds = torch.stack(new_inputs_embeds, dim=0)
 
         return inputs_embeds
 
