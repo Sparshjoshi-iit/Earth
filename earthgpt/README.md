@@ -6,6 +6,33 @@ A production-ready multimodal Vision-Language Model (VLM) fine-tuned for satelli
 2. **Visual Question Answering (VQA)** - Answer questions about satellite imagery
 3. **Dense Image Captioning** - Generate detailed descriptions of aerial scenes
 
+---
+
+## ⚡ **Quick Start (No Downloads Required!)**
+
+Get started in 5 minutes with **synthetic data**:
+
+```bash
+# 1. Setup
+pip install -r requirements.txt
+
+# 2. Generate synthetic satellite data (300 samples)
+python scripts/generate_sample_data.py
+
+# 3. Train
+python training/train.py --training_config configs/training_config_synthetic.yaml
+
+# 4. Test inference
+python scripts/inference.py \
+    --model_path outputs/earthgpt-synthetic/final_model \
+    --image data/synthetic/images/obb_sample_0001.png \
+    --task obb
+```
+
+**No large dataset downloads needed!** See [QUICKSTART.md](QUICKSTART.md) for detailed guide.
+
+---
+
 ## 🎯 Key Features
 
 - **Efficient Fine-Tuning**: Q-LoRA (4-bit quantization + LoRA) for training on single GPU
@@ -90,21 +117,63 @@ pip install git+https://github.com/salaniz/pycocoevalcap.git
 
 ## 📊 Dataset Preparation
 
-### Supported Datasets
+### Option 1: Synthetic Data (Recommended for Testing) ⚡
+
+**No downloads required!** Generate synthetic satellite-like images instantly:
+
+```bash
+python scripts/generate_sample_data.py
+```
+
+**Generated:**
+- 300 training samples (100 OBB + 100 VQA + 100 Captioning)
+- 60 validation samples
+- Synthetic satellite-like images
+- Location: `data/synthetic/`
+
+**Pros:**
+- ✅ Instant generation (2 minutes)
+- ✅ No large downloads
+- ✅ Tests complete pipeline
+- ✅ Good for development and debugging
+
+**Cons:**
+- ❌ Not suitable for production deployment
+- ❌ Lower realism than real satellite data
+
+### Option 2: Real Datasets (For Production)
+
+#### Automatically Downloadable
+
+```bash
+# Download datasets from Hugging Face (where available)
+python scripts/download_datasets.py --all
+
+# Specific datasets:
+python scripts/download_datasets.py --eurosat    # Scene classification
+python scripts/download_datasets.py --ucmerced   # Land use classification
+```
+
+#### Manual Downloads Required
+
+Some datasets require manual download due to access restrictions:
 
 1. **DOTA v1.5** - Oriented bounding box detection
    - Download: [DOTA Dataset](https://captain-whu.github.io/DOTA/dataset.html)
    - ~15 classes of objects in aerial images
+   - **Size**: ~20 GB
 
 2. **RSVQA** - Remote sensing visual question answering
    - Download: [RSVQA](https://rsvqa.sylvainlobry.com/)
    - Low Resolution (LR) and High Resolution (HR) variants
+   - **Size**: ~2 GB (LR) / ~10 GB (HR)
 
 3. **RSICD** - Remote sensing image captioning dataset
-   - Download: [RSICD](https://github.com/201528014227051/RSICD_optimal)
-   - 10,921 images with 5 captions each
+   - **Status**: Currently difficult to access
+   - **Alternative**: Use synthetic data or EuroSAT for captioning
+   - **Size**: ~1 GB
 
-### Data Preprocessing
+### Data Preprocessing (Real Datasets)
 
 #### Step 1: Preprocess Individual Datasets
 
@@ -115,7 +184,7 @@ python data_preprocessing/process_dota.py
 # Process RSVQA for VQA
 python data_preprocessing/process_rsvqa.py
 
-# Process RSICD for Captioning
+# Process RSICD for Captioning (if available)
 python data_preprocessing/process_rsicd.py
 ```
 
@@ -130,6 +199,8 @@ python data_preprocessing/merge_datasets.py
 This creates:
 - `data/unified_train.jsonl` - Training set
 - `data/unified_val.jsonl` - Validation set
+
+**Note**: For quick testing, use synthetic data first! See [QUICKSTART.md](QUICKSTART.md)
 
 ### Unified Data Format
 

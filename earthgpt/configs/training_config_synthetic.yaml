@@ -1,0 +1,60 @@
+# EarthGPT Training Configuration for Synthetic Data
+
+training:
+  # Paths
+  output_dir: "./outputs/earthgpt-synthetic"
+  logging_dir: "./logs"
+  cache_dir: "./cache"
+
+  # Data (using synthetic dataset)
+  data_path: "./data/synthetic/synthetic_train.jsonl"
+  val_data_path: "./data/synthetic/synthetic_val.jsonl"
+  image_root: "./data/synthetic/images"
+
+  # Training Hyperparameters (smaller for quick testing)
+  num_train_epochs: 5
+  per_device_train_batch_size: 2
+  per_device_eval_batch_size: 2
+  gradient_accumulation_steps: 4  # Effective batch size: 8
+
+  # Learning Rate
+  learning_rate: 2e-4
+  warmup_steps: 50
+  lr_scheduler_type: "cosine"
+
+  # Optimization
+  optim: "paged_adamw_8bit"
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+
+  # Mixed Precision
+  fp16: false
+  bf16: true
+
+  # Saving
+  save_strategy: "steps"
+  save_steps: 100
+  save_total_limit: 2
+
+  # Evaluation
+  evaluation_strategy: "steps"
+  eval_steps: 100
+
+  # Logging
+  logging_steps: 10
+  report_to: "tensorboard"  # Use tensorboard instead of wandb for local testing
+
+  # DeepSpeed (Optional)
+  deepspeed: null
+
+  # Other
+  seed: 42
+  dataloader_num_workers: 2
+  remove_unused_columns: false
+  group_by_length: false
+
+# Task Mixture Ratios
+task_mixture:
+  obb: 0.33
+  vqa: 0.33
+  captioning: 0.34
