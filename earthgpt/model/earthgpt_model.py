@@ -203,8 +203,9 @@ class EarthGPT(nn.Module):
         self,
         input_ids: torch.Tensor,
         pixel_values: Optional[torch.Tensor] = None,
-        attention_mask: Optional[torch.Tensor] = None
-    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        attention_mask: Optional[torch.Tensor] = None,
+        labels: Optional[torch.Tensor] = None
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor]]:
         """
         Prepare input embeddings by replacing <image> tokens with vision features.
 
@@ -212,17 +213,19 @@ class EarthGPT(nn.Module):
             input_ids: (batch_size, seq_len)
             pixel_values: (batch_size, channels, height, width)
             attention_mask: (batch_size, seq_len)
+            labels: (batch_size, seq_len)
 
         Returns:
             inputs_embeds: (batch_size, new_seq_len, hidden_size)
             attention_mask: (batch_size, new_seq_len) or None
+            labels: (batch_size, new_seq_len) or None
         """
         # Get text embeddings
         inputs_embeds = self.llm.get_input_embeddings()(input_ids)
 
         # If no images, return text embeddings directly
         if pixel_values is None:
-            return inputs_embeds, attention_mask
+            return inputs_embeds, attention_mask, labels
 
         # Encode images
         image_embeds = self.encode_images(pixel_values)  # (B, num_patches, hidden_size)
@@ -232,6 +235,7 @@ class EarthGPT(nn.Module):
         batch_size = input_ids.shape[0]
         new_inputs_embeds = []
         new_attention_masks = [] if attention_mask is not None else None
+        new_labels = [] if labels is not None else None
 
         for i in range(batch_size):
             # Find <image> token positions
@@ -242,6 +246,8 @@ class EarthGPT(nn.Module):
                 new_inputs_embeds.append(inputs_embeds[i])
                 if attention_mask is not None:
                     new_attention_masks.append(attention_mask[i])
+                if labels is not None:
+                    new_labels.append(labels[i])
                 continue
 
             # For simplicity, assume one <image> token per sample
@@ -276,13 +282,36 @@ class EarthGPT(nn.Module):
 
                 new_attention_masks.append(new_mask)
 
+            # Update labels if provided
+            if labels is not None:
+                before_labels = labels[i, :image_pos]
+                after_labels = labels[i, image_pos + 1:]
+                # Image patches don't have labels (use -100 to ignore in loss)
+                image_labels = torch.full(
+                    (num_image_patches,),
+                    -100,
+                    dtype=labels.dtype,
+                    device=labels.device
+                )
+
+                new_label = torch.cat([
+                    before_labels,
+                    image_labels,
+                    after_labels,
+                ], dim=0)
+
+                new_labels.append(new_label)
+
         # Stack back into tensor
         inputs_embeds = torch.stack(new_inputs_embeds, dim=0)
 
         if new_attention_masks is not None:
             attention_mask = torch.stack(new_attention_masks, dim=0)
 
-        return inputs_embeds, attention_mask
+        if new_labels is not None:
+            labels = torch.stack(new_labels, dim=0)
+
+        return inputs_embeds, attention_mask, labels
 
     def forward(
         self,
@@ -304,9 +333,9 @@ class EarthGPT(nn.Module):
         Returns:
             CausalLMOutput with loss and logits
         """
-        # Get input embeddings with vision features and updated attention mask
-        inputs_embeds, attention_mask = self.prepare_inputs_embeds(
-            input_ids, pixel_values, attention_mask
+        # Get input embeddings with vision features and updated attention mask and labels
+        inputs_embeds, attention_mask, labels = self.prepare_inputs_embeds(
+            input_ids, pixel_values, attention_mask, labels
         )
 
         # Forward through LLM
@@ -363,9 +392,9 @@ class EarthGPT(nn.Module):
         Returns:
             generated_ids: (batch_size, seq_len + max_new_tokens)
         """
-        # Get input embeddings and updated attention mask
-        inputs_embeds, attention_mask = self.prepare_inputs_embeds(
-            input_ids, pixel_values, attention_mask
+        # Get input embeddings and updated attention mask (no labels for generation)
+        inputs_embeds, attention_mask, _ = self.prepare_inputs_embeds(
+            input_ids, pixel_values, attention_mask, labels=None
         )
 
         # Generate
