@@ -14,7 +14,7 @@ import sys
 import yaml
 import argparse
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 
 import torch
 import wandb
@@ -53,6 +53,36 @@ class EarthGPTTrainer(Trainer):
         loss = outputs.loss
 
         return (loss, outputs) if return_outputs else loss
+
+    def _save(self, output_dir: Optional[str] = None, state_dict=None):
+        """
+        Custom save method to handle tied weights in the LLM.
+
+        The LLM has tied weights (embedding and lm_head share memory), which
+        causes issues with safetensors default behavior.
+        """
+        output_dir = output_dir if output_dir is not None else self.args.output_dir
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Get the model (unwrap if needed)
+        model_to_save = self.model
+        if hasattr(model_to_save, 'module'):
+            model_to_save = model_to_save.module
+
+        # Save LoRA adapters (if using PEFT)
+        if hasattr(model_to_save.llm, 'save_pretrained'):
+            model_to_save.llm.save_pretrained(output_dir)
+
+        # Save projector weights separately
+        projector_path = os.path.join(output_dir, "projector.pt")
+        torch.save(model_to_save.projector.state_dict(), projector_path)
+
+        # Save tokenizer
+        if self.tokenizer is not None:
+            self.tokenizer.save_pretrained(output_dir)
+
+        # Save training arguments
+        torch.save(self.args, os.path.join(output_dir, "training_args.bin"))
 
 
 def prepare_model(model_config: Dict, lora_config: Dict):
