@@ -285,6 +285,29 @@ class EarthGPT(nn.Module):
 
         return outputs
 
+    def gradient_checkpointing_enable(self, gradient_checkpointing_kwargs=None):
+        """
+        Enable gradient checkpointing for the language model.
+
+        This reduces memory usage during training at the cost of computation.
+        """
+        if hasattr(self.llm, 'gradient_checkpointing_enable'):
+            self.llm.gradient_checkpointing_enable(gradient_checkpointing_kwargs)
+        elif hasattr(self.llm, 'enable_input_require_grads'):
+            # For PEFT models
+            self.llm.enable_input_require_grads()
+            if hasattr(self.llm.base_model, 'gradient_checkpointing_enable'):
+                self.llm.base_model.gradient_checkpointing_enable(gradient_checkpointing_kwargs)
+
+    def gradient_checkpointing_disable(self):
+        """
+        Disable gradient checkpointing for the language model.
+        """
+        if hasattr(self.llm, 'gradient_checkpointing_disable'):
+            self.llm.gradient_checkpointing_disable()
+        elif hasattr(self.llm.base_model, 'gradient_checkpointing_disable'):
+            self.llm.base_model.gradient_checkpointing_disable()
+
     @torch.no_grad()
     def generate(
         self,
